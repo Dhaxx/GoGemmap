@@ -54,7 +54,7 @@ func GetConexoes() (*sql.DB, *sqlx.DB, error) {
     // Conexão com Oracle
     ConexaoOracle, err := sqlx.Connect("godror", dsnOracle)
     if err != nil {
-        ConexaoFdb.Close()
+        ConexaoOracle.Close()
         return nil, nil, fmt.Errorf("erro ao estabelecer conexão Oracle: %v", err)
     }
 
