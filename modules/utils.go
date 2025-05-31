@@ -16,6 +16,34 @@ import (
 var Cache struct {
 	Empresa int
 	Ano     int
+	Cadpros map[string]string
+}
+
+type ProcessoLicitatorio struct {
+	Nro    int
+	Licit  string
+	Modlic string
+	Codmod int
+}
+
+var Modalidades = []ProcessoLicitatorio{
+	{Nro: 1, Licit: "CONCURSO", Modlic: "CS01", Codmod: 7},
+	{Nro: 2, Licit: "MAT / SERV - CONVITE", Modlic: "CC02", Codmod: 2},
+	{Nro: 3, Licit: "MAT / SERV - TOMADA", Modlic: "TOM3", Codmod: 3},
+	{Nro: 4, Licit: "MAT / SERV - CONCORRENCIA", Modlic: "CON4", Codmod: 4},
+	{Nro: 5, Licit: "DISPENSA", Modlic: "DI01", Codmod: 1},
+	{Nro: 6, Licit: "INEXIGIBILIDADE", Modlic: "IN01", Codmod: 5},
+	{Nro: 7, Licit: "PREGÃO PRESENCIAL", Modlic: "PP01", Codmod: 8},
+	{Nro: 8, Licit: "PREGÃO ELETRÔNICO", Modlic: "PE01", Codmod: 9},
+	{Nro: 9, Licit: "DISPENSA", Modlic: "DI01", Codmod: 1},
+	{Nro: 10, Licit: "PREGÃO ELETRÔNICO", Modlic: "PE01", Codmod: 9},
+	{Nro: 11, Licit: "LEILÃO", Modlic: "LEIL", Codmod: 6},
+	{Nro: 12, Licit: "DISPENSA", Modlic: "DI01", Codmod: 1},
+	{Nro: 13, Licit: "DISPENSA", Modlic: "DI01", Codmod: 1},
+	{Nro: 14, Licit: "CONCORRÊNCIA ELETRÔNICA", Modlic: "CE01", Codmod: 13},
+	{Nro: 15, Licit: "DISPENSA ELETRÔNICA", Modlic: "DE01", Codmod: 11},
+	{Nro: 16, Licit: "DISPENSA", Modlic: "DI01", Codmod: 1},
+	{Nro: 17, Licit: "DISPENSA", Modlic: "DI01", Codmod: 1},
 }
 
 func init() {
@@ -27,6 +55,31 @@ func init() {
 
 	cnxFdb.QueryRow("Select empresa from cadcli").Scan(&Cache.Empresa)
 	cnxFdb.QueryRow("Select mexer from cadcli").Scan(&Cache.Ano)
+	var cadestOk int
+	_ = cnxFdb.QueryRow("Select count(*) from cadest").Scan(&cadestOk)
+	if cadestOk == 0 {
+		fmt.Print("Cadest vazia")
+	} else {
+		cadpros, err := cnxFdb.Query(`select cadpro, 
+			cast(codreduz as integer) material, 
+			case cast(g.conv_tipo as integer) when 9 then 9 else 1 end tipo
+			From cadest t join cadgrupo g on g.GRUPO = t.GRUPO`)
+		if err != nil {
+			panic("Falha ao executar consulta: " + err.Error())
+		}
+		defer cadpros.Close()
+
+		Cache.Cadpros = make(map[string]string)
+		for cadpros.Next() {
+			var cadpro string
+			var material int
+			var tipo int
+			if err := cadpros.Scan(&cadpro, &material, &tipo); err != nil {
+				panic("Falha ao ler resultados da consulta: " + err.Error())
+			}
+			Cache.Cadpros[fmt.Sprintf("%d|%d", material, tipo)] = cadpro
+		}
+	}
 }
 
 func LimpaTabela(tabelas []string) {
@@ -58,7 +111,7 @@ func CountRows(q string, args ...any) (int64, error) {
 	defer cnxPg.Close()
 
 	var count int64
-	query := fmt.Sprintf("SELECT count(*) FROM (%v) as subquery", q)
+	query := fmt.Sprintf("SELECT count(*) FROM (%v) subquery", q)
 
 	if err := cnxPg.QueryRow(query).Scan(&count); err != nil {
 		if err == sql.ErrNoRows {
@@ -258,4 +311,31 @@ func Trigger(trigger string, status bool) {
 	}
 
 	tx.Exec(fmt.Sprintf("ALTER TRIGGER %s %s", trigger, statusStr))
+}
+
+func ExtourouSubgrupo(codant string) string {
+	cnxFdb, _, err := connection.GetConexoes()
+	if err != nil {
+		panic("Falha ao conectar com o banco de destino: " + err.Error())
+	}
+	defer cnxFdb.Close()
+
+	tx, err := cnxFdb.Begin()
+	if err != nil {
+		panic("erro ao iniciar transação: " + err.Error())
+	}
+	defer tx.Commit()
+
+	if _, err = tx.Exec("INSERT INTO CADSUBGR(grupo, subgrupo, nome, ocultar, key_subgrupo, base)  select grupo, lpad(max(cast((SELECT max(subgrupo) FROM cadsubgr) as integer) + 1), 3, '0'), nome, 'N', key_subgrupo, 'N' from cadsubgr where key_subgrupo = ? GROUP BY 1, 3, 5", codant); err != nil {
+		panic("Falha ao inserir novo subgrupo: " + err.Error())
+	}
+	tx.Commit()
+
+	var novoSubgrupo string
+	err = cnxFdb.QueryRow("SELECT max(subgrupo) FROM cadsubgr where key_subgrupo = ?", codant).Scan(&novoSubgrupo)
+	if err != nil {
+		panic("Falha ao recuperar novo subgrupo: " + err.Error())
+	}
+
+	return novoSubgrupo
 }
