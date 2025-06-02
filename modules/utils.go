@@ -104,16 +104,16 @@ func LimpaTabela(tabelas []string) {
 }
 
 func CountRows(q string, args ...any) (int64, error) {
-	_, cnxPg, err := connection.GetConexoes()
+	_, cnxOra, err := connection.GetConexoes()
 	if err != nil {
 		fmt.Printf("Falha ao conectar com o banco de destino: %v", err)
 	}
-	defer cnxPg.Close()
+	defer cnxOra.Close()
 
 	var count int64
 	query := fmt.Sprintf("SELECT count(*) FROM (%v) subquery", q)
 
-	if err := cnxPg.QueryRow(query).Scan(&count); err != nil {
+	if err := cnxOra.QueryRow(query).Scan(&count); err != nil {
 		if err == sql.ErrNoRows {
 			return 0, fmt.Errorf("nenhuma linha recuperada: %v", sql.ErrNoRows.Error())
 		}

@@ -10,7 +10,7 @@ import (
 
 func SaldoInicial(p *mpb.Progress) {
 	modules.Trigger("TD_ICADREQ", false)
-	modules.LimpaTabela([]string{"icadreq where requi containing '000000/'","requi where requi containing '000000/'"})
+	modules.LimpaTabela([]string{"icadreq where requi containing '000000/'", "requi where requi containing '000000/'"})
 	modules.Trigger("TI_ICADREQ", false)
 
 	cnxFdb, cnxOra, err := connection.GetConexoes()
@@ -58,7 +58,7 @@ func SaldoInicial(p *mpb.Progress) {
 		panic("Erro ao contar linhas: " + err.Error())
 	}
 	bar := modules.NewProgressBar(p, totalLinhas, "Saldo Inicial")
-	
+
 	_, err = tx.Exec(`INSERT
 	INTO
 	requi (empresa,
@@ -74,20 +74,20 @@ func SaldoInicial(p *mpb.Progress) {
 	said,
 	comp,
 	codif)
-	VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, 
-	modules.Cache.Empresa, 
-	0, 
-	fmt.Sprintf("000000/%v",modules.Cache.Ano%2000), 
-	"000000",
-	modules.Cache.Ano,
-	"000000000",
-	0,
-	fmt.Sprintf("31.12.%d", modules.Cache.Ano-1),
-	fmt.Sprintf("31.12.%d", modules.Cache.Ano-1),
-	"S",
-	"N",
-	"P",
-	nil)
+	VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		modules.Cache.Empresa,
+		0,
+		fmt.Sprintf("000000/%v", modules.Cache.Ano%2000),
+		"000000",
+		modules.Cache.Ano,
+		"000000000",
+		0,
+		fmt.Sprintf("31.12.%d", modules.Cache.Ano-1),
+		fmt.Sprintf("31.12.%d", modules.Cache.Ano-1),
+		"S",
+		"N",
+		"P",
+		nil)
 	if err != nil {
 		panic("Erro ao inserir na tabela requi: " + err.Error())
 	}
@@ -133,14 +133,14 @@ func Requi(p *mpb.Progress) {
 	modules.Trigger("TD_ICADREQ", false)
 	modules.Trigger("TAU_ESTOQUE_DESTINO", false)
 	modules.Trigger("TI_ICADREQ", false)
-	modules.LimpaTabela([]string{"icadreq where requi not containing '000000/'","requi where requi not containing '000000/'"})
+	modules.LimpaTabela([]string{"icadreq where requi not containing '000000/'", "requi where requi not containing '000000/'"})
 
-	cnxFdb, cnxPg, err := connection.GetConexoes()
+	cnxFdb, cnxOra, err := connection.GetConexoes()
 	if err != nil {
 		panic("Falha ao conectar com o banco de destino: " + err.Error())
 	}
 	defer cnxFdb.Close()
-	defer cnxPg.Close()
+	defer cnxOra.Close()
 
 	tx, err := cnxFdb.Begin()
 	if err != nil {
@@ -317,7 +317,7 @@ func Requi(p *mpb.Progress) {
 
 	idRequiAnterior := 0
 
-	rows, err := cnxPg.Queryx(query)
+	rows, err := cnxOra.Queryx(query)
 	if err != nil {
 		panic("Erro ao executar consulta: " + err.Error())
 	}
@@ -381,14 +381,14 @@ func Requi(p *mpb.Progress) {
 			registro.Vaun2 = registro.ValorUnit
 			registro.Vato2 = registro.ValorTotal
 		}
-		_,err = insertIcadreq.Exec(registro.Id_requi, registro.Requi, registro.Codccusto, registro.Empresa, registro.Item, registro.Quan1, registro.Quan2, registro.Vaun1, registro.Vaun2, registro.Vato1, registro.Vato2, registro.Cadpro, registro.Destino)
+		_, err = insertIcadreq.Exec(registro.Id_requi, registro.Requi, registro.Codccusto, registro.Empresa, registro.Item, registro.Quan1, registro.Quan2, registro.Vaun1, registro.Vaun2, registro.Vato1, registro.Vato2, registro.Cadpro, registro.Destino)
 		if err != nil {
 			panic("Erro ao inserir icadreq: " + err.Error())
 		}
 		bar.Increment()
 	}
 	tx.Commit()
-	
+
 	modules.Trigger("TD_ICADREQ", true)
 	modules.Trigger("TAU_ESTOQUE_DESTINO", true)
 	modules.Trigger("TI_ICADREQ", true)
