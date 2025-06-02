@@ -623,23 +623,37 @@ func CadproProposta(p *mpb.Progress) {
 	}
 	defer insert.Close()
 
-	query := `SELECT 
+	query := `WITH max_rodada AS (
+		SELECT
+			LICIT_LIC_NRO AS numlic,
+			LICFOR_FO_PES_NRO AS codif,
+			LICIT_MTSV_NRO AS material,
+			MAX(nro_rodada) AS nro_rodada
+		FROM
+			system.D_LANCES
+		GROUP BY
+			LICIT_LIC_NRO,
+			LICFOR_FO_PES_NRO,
+			LICIT_MTSV_NRO
+	)
+	SELECT 
 		1 sessao, 
-		numlic, 
-		codif, 
-		subem, 
-		material, 
-		item, 
-		quan1, 
-		vaun1, 
-		vato1, 
-		status,
+		p.numlic, 
+		p.codif, 
+		p.subem, 
+		p.material, 
+		p.item, 
+		p.quan1, 
+		p.vaun1, 
+		p.vato1, 
+		p.status,
 		'S' item_lance,
 		'00000001' lotelic,
-		CASE WHEN quan1 = 1 THEN 'V' ELSE 'Q' END tpcontrole_saldo
+		CASE WHEN p.quan1 = 1 THEN 'V' ELSE 'Q' END tpcontrole_saldo,
+		p.nro_rodada
 	FROM (
 		SELECT
-			MAX(dl.nro_rodada) AS nro_rodada,
+			dl.nro_rodada,
 			dl.LICIT_LIC_NRO AS numlic,
 			dl.LICFOR_FO_PES_NRO AS codif,
 			CASE WHEN dl.FLG_VENCEDOR = 'S' THEN 1 ELSE 0 END AS subem,
@@ -651,68 +665,64 @@ func CadproProposta(p *mpb.Progress) {
 			b.status
 		FROM
 			system.D_LANCES dl
+		JOIN max_rodada mr 
+			ON dl.LICIT_LIC_NRO = mr.numlic 
+			AND dl.LICFOR_FO_PES_NRO = mr.codif 
+			AND dl.LICIT_MTSV_NRO = mr.material
+			AND dl.nro_rodada = mr.nro_rodada
 		JOIN (
 			WITH ranked_items AS (
+					SELECT
+						dm.NOME,
+						dli.NROSEQ,
+						dlv.NROSEQ AS SEQ_VLR,
+						dlv.LICIT_MTSV_NRO,
+						dli.FLG_ANEXO,
+						dlv.LICIT_LIC_NRO AS numlic,
+						dlv.QUANT,
+						dlv.VLR_UNIT,
+						dlv.VLR_TOTAL,
+						dlv.LICFOR_FO_PES_NRO AS codif,
+						CASE 
+							WHEN dli.FLG_FRACASSADO = 'S' THEN 'D' 
+							ELSE 'C' 
+						END AS status,
+						COUNT(*) OVER (PARTITION BY dlv.LICIT_LIC_NRO, dlv.NROSEQ) AS QTD_DUPLICADAS,
+						ROW_NUMBER() OVER (
+							PARTITION BY dlv.LICIT_LIC_NRO, dlv.NROSEQ
+							ORDER BY dlv.VLR_UNIT ASC
+						) AS rn
+					FROM
+						system.D_LICIT_VLR dlv
+					JOIN system.D_MATSERV dm 
+						ON dlv.LICIT_MTSV_NRO = dm.NRO
+					JOIN system.D_LIC_ITENS dli 
+						ON dlv.LICIT_LIC_NRO = dli.LIC_NRO 
+						AND dlv.LICIT_MTSV_NRO = dli.MTSV_NRO 
+						AND dli.flg_anexo = 'N'
+					JOIN system.D_LICITACAO dl 
+						ON dl.NRO = dlv.LICIT_LIC_NRO 
+				)
 				SELECT
-					dm.NOME,
-					dli.NROSEQ,
-					dlv.NROSEQ AS SEQ_VLR,
-					dlv.LICIT_MTSV_NRO,
-					dli.FLG_ANEXO,
-					dlv.LICIT_LIC_NRO AS numlic,
-					dlv.QUANT,
-					dlv.VLR_UNIT,
-					dlv.VLR_TOTAL,
-					dlv.LICFOR_FO_PES_NRO AS codif,
-					CASE 
-						WHEN dli.FLG_FRACASSADO = 'S' THEN 'D' 
-						ELSE 'C' 
-					END AS status,
-					COUNT(*) OVER (PARTITION BY dlv.LICIT_LIC_NRO, dlv.NROSEQ) AS QTD_DUPLICADAS,
-					ROW_NUMBER() OVER (
-						PARTITION BY dlv.LICIT_LIC_NRO, dlv.NROSEQ
-						ORDER BY dlv.VLR_UNIT ASC
-					) AS rn
+					SEQ_VLR AS item,
+					numlic,
+					dl.MTSV_NRO AS material,
+					ranked_items.QUANT AS quan1,
+					status
 				FROM
-					system.D_LICIT_VLR dlv
-				JOIN system.D_MATSERV dm 
-					ON dlv.LICIT_MTSV_NRO = dm.NRO
-				JOIN system.D_LIC_ITENS dli 
-					ON dlv.LICIT_LIC_NRO = dli.LIC_NRO 
-					AND dlv.LICIT_MTSV_NRO = dli.MTSV_NRO 
-					AND dli.flg_anexo = 'N'
-				JOIN system.D_LICITACAO dl 
-					ON dl.NRO = dlv.LICIT_LIC_NRO 
-			)
-			SELECT
-				SEQ_VLR AS item,
-				numlic,
-				dl.MTSV_NRO AS material,
-				ranked_items.QUANT AS quan1,
-				status
-			FROM
-				ranked_items
-			LEFT JOIN system.V_LICITACAO_ITENS dl 
-				ON dl.id_lic = numlic 
-				AND dl.MTSV_NRO = ranked_items.LICIT_MTSV_NRO 
-			WHERE
-				rn = 1
+					ranked_items
+				LEFT JOIN system.V_LICITACAO_ITENS dl 
+					ON dl.id_lic = numlic 
+					AND dl.MTSV_NRO = ranked_items.LICIT_MTSV_NRO 
+				WHERE
+					rn = 1
 		) b 
 			ON dl.LICIT_LIC_NRO = b.numlic 
 			AND dl.LICIT_MTSV_NRO = b.material
-		GROUP BY 
-			dl.LICIT_LIC_NRO, 
-			dl.LICFOR_FO_PES_NRO, 
-			dl.FLG_VENCEDOR, 
-			dl.LICIT_MTSV_NRO, 
-			dl.VLR_LANCE, 
-			b.item, 
-			b.quan1,
-			b.status
-	) propostas
+	) p
 	ORDER BY 
-		numlic, 
-		item`
+		p.numlic, 
+		p.item`
 
 	totalRows, err := modules.CountRows(query)
 	if err != nil {
@@ -777,8 +787,8 @@ func CadproProposta(p *mpb.Progress) {
 	}
 	tx.Commit()
 
-	cnxFdb.Exec(`insert into cadpro_lance (sessao, rodada, codif, itemp, vaunl, vatol, status, subem, numlic, marca)
-	SELECT sessao, 1 rodada, CODIF, ITEMP, VAUN1, VATO1, 'F' status, SUBEM, numlic, marca FROM CADPRO_PROPOSTA cp where subem = 1 and not exists
+	cnxFdb.Exec(`insert into cadpro_lance (sessao, rodada, codif, itemp, vaunl, vatol, status, subem, numlic)
+	SELECT sessao, 1 rodada, CODIF, ITEMP, VAUN1, VATO1, 'F' status, SUBEM, numlic FROM CADPRO_PROPOSTA cp where subem = 1 and not exists
 	(select 1 from cadpro_lance cl where cp.codif = cl.codif and cl.itemp = cp.itemp and cl.numlic = cp.numlic)`)
 
 	cnxFdb.Exec(`INSERT into cadpro_final (numlic, ult_sessao, codif, itemp, vaunf, vatof, STATUS, subem)
@@ -835,10 +845,10 @@ func CadproProposta(p *mpb.Progress) {
 		a.NUMLIC,
 		1,
 		b.ITEMP,
-		p.qtdadt,
+		CASE WHEN a.VAUNL <> 0 THEN ROUND((a.vatol / a.VAUNL), 2) ELSE 0 END qtdunit,
 		0,
-		p.vaunadt,
-		p.qtdadt * p.vaunadt AS vatoadt,
+		a.VAUNL,
+		CASE WHEN a.VAUNL <> 0 THEN ROUND((a.vatol / a.VAUNL), 2) * a.VAUNL ELSE 0 END vatoadt,
 		0,
 		0,
 		c.ID_CADORC,
@@ -853,7 +863,7 @@ func CadproProposta(p *mpb.Progress) {
 	INNER JOIN CADPRO_STATUS b ON
 		b.NUMLIC = a.NUMLIC AND a.ITEMP = b.ITEMP AND a.SESSAO = b.SESSAO
 	INNER JOIN CADPROLIC_DETALHE c ON
-		c.NUMLIC = a.NUMLIC AND b.ITEM = c.ITEM_CADPROLIC
+		c.NUMLIC = a.NUMLIC AND b.ITEMP = c.ITEM_CADPROLIC
 	INNER JOIN CADLIC D ON
 		D.NUMLIC = A.NUMLIC
 	inner join cadpro_proposta p on 
@@ -866,5 +876,27 @@ func CadproProposta(p *mpb.Progress) {
 			WHERE cp.NUMLIC = a.NUMLIC 
 			AND cp.ITEM = c.ITEM 
 			AND cp.CODIF = a.CODIF
-		);`)
+		)`)
+
+	cnxFdb.Exec(`
+	EXECUTE BLOCK AS  
+		BEGIN  
+		INSERT INTO REGPRECODOC (NUMLIC, CODATUALIZACAO, DTPRAZO, ULTIMA)  
+		SELECT DISTINCT A.NUMLIC, 0, DATEADD(1 YEAR TO A.DTHOM), 'S'  
+		FROM CADLIC A WHERE A.REGISTROPRECO = 'S' AND A.DTHOM IS NOT NULL  
+		AND NOT EXISTS(SELECT 1 FROM REGPRECODOC X  
+		WHERE X.NUMLIC = A.NUMLIC);  
+
+		INSERT INTO REGPRECO (COD, DTPRAZO, NUMLIC, CODIF, CADPRO, CODCCUSTO, ITEM, CODATUALIZACAO, QUAN1, VAUN1, VATO1, QTDENT, SUBEM, STATUS, ULTIMA)  
+		SELECT B.ITEM, DATEADD(1 YEAR TO A.DTHOM), B.NUMLIC, B.CODIF, B.CADPRO, B.CODCCUSTO, B.ITEM, 0, B.QUAN1, B.VAUN1, B.VATO1, 0, B.SUBEM, B.STATUS, 'S'  
+		FROM CADLIC A INNER JOIN CADPRO B ON (A.NUMLIC = B.NUMLIC) WHERE A.REGISTROPRECO = 'S' AND A.DTHOM IS NOT NULL  
+		AND NOT EXISTS(SELECT 1 FROM REGPRECO X  
+		WHERE X.NUMLIC = B.NUMLIC AND X.CODIF = B.CODIF AND X.CADPRO = B.CADPRO AND X.CODCCUSTO = B.CODCCUSTO AND X.ITEM = B.ITEM);  
+
+		INSERT INTO REGPRECOHIS (NUMLIC, CODIF, CADPRO, CODCCUSTO, ITEM, CODATUALIZACAO, QUAN1, VAUN1, VATO1, SUBEM, STATUS, MOTIVO, MARCA, NUMORC, ULTIMA)  
+		SELECT B.NUMLIC, B.CODIF, B.CADPRO, B.CODCCUSTO, B.ITEM, 0, B.QUAN1, B.VAUN1, B.VATO1, B.SUBEM, B.STATUS, B.MOTIVO, B.MARCA, B.NUMORC, 'S'  
+		FROM CADLIC A INNER JOIN CADPRO B ON (A.NUMLIC = B.NUMLIC) WHERE A.REGISTROPRECO = 'S' AND A.DTHOM IS NOT NULL  
+		AND NOT EXISTS(SELECT 1 FROM REGPRECOHIS X  
+		WHERE X.NUMLIC = B.NUMLIC AND X.CODIF = B.CODIF AND X.CADPRO = B.CADPRO AND X.CODCCUSTO = B.CODCCUSTO AND X.ITEM = B.ITEM);  
+	END;`)
 }

@@ -49,9 +49,9 @@ func SaldoInicial(p *mpb.Progress) {
 	FROM
 		system.D_INVENTARIO di
 	WHERE
-		ex_ano = 2024
+		ex_ano = %v
 		AND di.mes = 12
-		AND saldo * preco_medio <> 0`, modules.Cache.Ano, modules.Cache.Empresa)
+		AND saldo * preco_medio <> 0`, modules.Cache.Ano%2000, modules.Cache.Empresa, modules.Cache.Ano-1)
 
 	totalLinhas, err := modules.CountRows(query)
 	if err != nil {
@@ -92,6 +92,20 @@ func SaldoInicial(p *mpb.Progress) {
 		panic("Erro ao inserir na tabela requi: " + err.Error())
 	}
 
+	cacheCadest := make(map[string]string)
+	queryCadest, err := cnxFdb.Query(`select codreduz, cadpro from cadest`)
+	if err != nil {
+		panic("Erro ao consultar cadest: " + err.Error())
+	}
+	defer queryCadest.Close()
+	for queryCadest.Next() {
+		var codreduz, cadpro string
+		if err := queryCadest.Scan(&codreduz, &cadpro); err != nil {
+			panic("Erro ao ler cadest: " + err.Error())
+		}
+		cacheCadest[codreduz] = cadpro
+	}
+
 	rows, err := cnxOra.Queryx(query)
 	if err != nil {
 		panic("Erro ao executar consulta: " + err.Error())
@@ -104,7 +118,7 @@ func SaldoInicial(p *mpb.Progress) {
 			panic("Erro ao ler registro: " + err.Error())
 		}
 
-		registro.Cadpro = modules.Cache.Cadpros[registro.Cadpro]
+		registro.Cadpro = cacheCadest[registro.Cadpro]
 
 		if _, err = insertIcadreq.Exec(registro.Id_requi, registro.Requi, registro.Codccusto, registro.Empresa, registro.Item, registro.Quan1, registro.Quan2, registro.Vaun1, registro.Vaun2, registro.Vato1, registro.Vato2, registro.Cadpro, registro.Destino); err != nil {
 			panic("Erro ao inserir icadreq: " + err.Error())
@@ -145,12 +159,13 @@ func Requi(p *mpb.Progress) {
 		codccusto,
 		datae,
 		dtlan,
+		dtpag,
 		entr,
 		said,
 		comp,
 		codif,
 		entr_said)
-	VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		panic("Erro ao preparar insert: " + err.Error())
 	}
@@ -163,103 +178,121 @@ func Requi(p *mpb.Progress) {
 	defer insertIcadreq.Close()
 
 	query := fmt.Sprintf(`
-	--Consumo Imediato
+	WITH base AS (
 	select
-		%v entidade,
-		m.nro id_requi,
-		lpad(m.nro,6,'0') || '/' || substr(EX_ANO,3,2) requi,
-		lpad(m.nro,6,'0') num,
-		ex_ano ano,
-		TO_CHAR(secest_nro, 'fm00000000') AS destino, 
-		0 codccusto,
-		dt_emissao dtlan,
-		dt_emissao datae,
-		dt_emissao dtpag,
-		'X' tipomov,
-		'P' comp,
-		m.FO_PES_NRO codif,
-		nro_doc||'/'||serie docum,
-		i.NROSEQ item,
-		i.MTSV_NRO codreduz,
-		i.quant quantidade,
-		i.VAL_UNIT valorunitario,
-		i.VAL_TOTAL valortotal,
-		NULL motorista,
-		NULL km,
-		NULL placa,
-		(select case when aut.NRO_DOC is not null then lpad(aut.NRO_DOC,5,'0') || '/' || substr(aut.EX_ANO,3,2) else null end numped
-			from system.D_MOV_ATC ped
-			join system.D_AUTCOMPR aut on ped.ATC_NRO = aut.NRO and aut.ATC_NRO is null
-		where  m.NRO = ped.MOV_NRO and rownum = 1
-		) numped
-	from system.D_MOVTO m
-			join system.D_MOV_ITENS i on i.MOV_NRO = m.NRO
-	where extract(year from m.DT_EMISSAO) = 2025 AND i.FLG_SAI_DIR = 'S'
-	UNION all
-	--Entradas
+			%v entidade,
+			m.nro id_requi,
+			lpad(m.nro,6,'0') || '/' || substr(EX_ANO,3,2) requi,
+			lpad(m.nro,6,'0') num,
+			ex_ano ano,
+			TO_CHAR(secest_nro, 'fm00000000') AS destino, 
+			0 codccusto,
+			dt_emissao dtlan,
+			dt_emissao datae,
+			dt_emissao dtpag,
+			'X' tipomov,
+			'P' comp,
+			m.FO_PES_NRO codif,
+			nro_doc||'/'||serie docum,
+			i.NROSEQ item,
+			i.MTSV_NRO codreduz,
+			i.quant quantidade,
+			i.VAL_UNIT valorunitario,
+			i.VAL_TOTAL valortotal,
+			--NULL motorista,
+			--NULL km,
+			--NULL placa,
+			(select case when aut.NRO_DOC is not null then lpad(aut.NRO_DOC,5,'0') || '/' || substr(aut.EX_ANO,3,2) else null end numped
+				from system.D_MOV_ATC ped
+				join system.D_AUTCOMPR aut on ped.ATC_NRO = aut.NRO and aut.ATC_NRO is null
+			where  m.NRO = ped.MOV_NRO and rownum = 1
+			) numped
+		from system.D_MOVTO m
+				join system.D_MOV_ITENS i on i.MOV_NRO = m.NRO
+		where extract(year from m.DT_EMISSAO) = %v AND i.FLG_SAI_DIR = 'S'
+		UNION all
+		--Entradas
+		SELECT
+			%v entidade,
+			a.nro id_requi,
+			lpad(a.nro,6,'0') || '/' || substr(EX_ANO,3,2) requi,
+			lpad(a.nro,6,'0') num,
+			ex_ano ano,
+			TO_CHAR(secest_nro, 'fm00000000') AS destino, 
+			0 codccusto,
+			dt_emissao dtlan,
+			dt_emissao datae,
+			null dtpag,
+			'E' tipomov,
+			'P' comp,
+			a.FO_PES_NRO codif,
+			nro_doc||'/'||serie docum,
+			b.NROSEQ item,
+			b.MTSV_NRO codreduz,
+			b.quant quantidade,
+			b.VAL_UNIT vaun1,
+			b.VAL_TOTAL vato1,
+			--NULL motorista,
+			--NULL km,
+			--NULL placa,
+			(select case when aut.NRO_DOC is not null then lpad(aut.NRO_DOC,5,'0') || '/' || substr(aut.EX_ANO,3,2) else null end numped
+				from system.D_MOV_ATC ped
+				join system.D_AUTCOMPR aut on ped.ATC_NRO = aut.NRO and aut.ATC_NRO is null
+			where  a.NRO = ped.MOV_NRO and rownum = 1
+			) numped
+		FROM
+			system.D_MOVTO a
+		JOIN system.D_MOV_ITENS b ON a.nro = b.MOV_NRO AND b.FLG_SAI_DIR <> 'S' AND a.EX_ANO = %v
+		UNION all
+		--Saidas
+		SELECT
+			%v entidade,
+			dri.REQ_NRO id_requi,
+			lpad(dr.nro,6,'0') || '/' || substr(EX_ANO,3,2) requi,
+			lpad(dr.nro,6,'0') num,
+			ex_ano ano,
+			TO_CHAR(secest_nro, 'fm00000000') AS destino,
+			DEPSEC_NRO codccusto,
+			dt_emissao dtlan,
+			NULL datae,
+			dt_emissao dtpag,
+			'S' tipomov,
+			'P' comp,
+			null codif,
+			null docum,
+			dri.nroseq item,
+			dri.MTSV_NRO,
+			dri.quant,
+			0,
+			0,
+			--NULL motorista,
+			--NULL km,
+			--NULL placa,
+			NULL numped
+		FROM
+			system.D_REQUISICAO dr
+		JOIN system.D_REQ_ITENS dri ON
+			dr.nro = dri.req_nro
+		WHERE ex_ano = %v AND dr.FLG_SAI_DIR <> 'S')
 	SELECT
-		%v entidade,
-		a.nro id_requi,
-		lpad(a.nro,6,'0') || '/' || substr(EX_ANO,3,2) requi,
-		lpad(a.nro,6,'0') num,
-		ex_ano ano,
-		TO_CHAR(secest_nro, 'fm00000000') AS destino, 
-		0 codccusto,
-		dt_emissao dtlan,
-		dt_emissao datae,
-		null dtpag,
-		'E' tipomov,
-		'P' comp,
-		a.FO_PES_NRO codif,
-		nro_doc||'/'||serie docum,
-		b.NROSEQ item,
-		b.MTSV_NRO codreduz,
-		b.quant quantidade,
-		b.VAL_UNIT vaun1,
-		b.VAL_TOTAL vato1,
-		NULL motorista,
-		NULL km,
-		NULL placa,
-		(select case when aut.NRO_DOC is not null then lpad(aut.NRO_DOC,5,'0') || '/' || substr(aut.EX_ANO,3,2) else null end numped
-			from system.D_MOV_ATC ped
-			join system.D_AUTCOMPR aut on ped.ATC_NRO = aut.NRO and aut.ATC_NRO is null
-		where  a.NRO = ped.MOV_NRO and rownum = 1
-		) numped
-	FROM
-		system.D_MOVTO a
-	JOIN system.D_MOV_ITENS b ON a.nro = b.MOV_NRO AND b.FLG_SAI_DIR <> 'S' AND a.EX_ANO = 2025
-	UNION all
-	--Saidas
-	SELECT
-		%v entidade,
-		dri.REQ_NRO id_requi,
-		lpad(dr.nro,6,'0') || '/' || substr(EX_ANO,3,2) requi,
-		lpad(dr.nro,6,'0') num,
-		ex_ano ano,
-		TO_CHAR(secest_nro, 'fm00000000') AS destino,
-		DEPSEC_NRO codccusto,
-		dt_emissao dtlan,
-		NULL datae,
-		dt_emissao dtpag,
-		'S' tipomov,
-		'P' comp,
-		null codif,
-		null docum,
-		dri.nroseq item,
-		dri.MTSV_NRO,
-		dri.quant,
-		0,
-		0,
-		NULL motorista,
-		NULL km,
-		NULL placa,
-		NULL numped
-	FROM
-		system.D_REQUISICAO dr
-	JOIN system.D_REQ_ITENS dri ON
-		dr.nro = dri.req_nro
-	WHERE ex_ano = 2025 AND dr.FLG_SAI_DIR <> 'S'
-	ORDER BY tipomov, id_requi, item`, modules.Cache.Empresa, modules.Cache.Ano)
+	entidade,
+	DENSE_RANK() OVER (ORDER BY num, tipomov) AS id_requi,
+	ano,
+	destino,
+	codccusto,
+	dtlan,
+	datae,
+	dtpag,
+	tipomov,
+	comp,
+	codif,
+	docum,
+	item,
+	CODREDUZ,
+	QUANTIDADE,
+	VALORUNITARIO,
+	VALORTOTAL
+	FROM base`, modules.Cache.Empresa, modules.Cache.Ano, modules.Cache.Empresa, modules.Cache.Ano, modules.Cache.Empresa, modules.Cache.Ano)
 
 	cacheCadest := make(map[string]string)
 	queryCadest, err := cnxFdb.Query(`select codreduz, cadpro from cadest`)
@@ -300,6 +333,9 @@ func Requi(p *mpb.Progress) {
 			panic("Erro ao ler registro: " + err.Error())
 		}
 
+		registro.Requi = fmt.Sprintf("%06d/%v", registro.Id_requi, registro.Ano%1000)
+		registro.Num = fmt.Sprintf("%06d", registro.Id_requi)
+
 		if registro.Id_requi != idRequiAnterior {
 			if registro.Tipo == "E" {
 				registro.Entr = "S"
@@ -312,7 +348,7 @@ func Requi(p *mpb.Progress) {
 				registro.Said = "S"
 				entrSaid = "S"
 			}
-			_, err = insertRequi.Exec(registro.Empresa, registro.Id_requi, registro.Requi, registro.Num, registro.Ano, registro.Destino, registro.Codccusto, registro.Datae, registro.Dtlan, registro.Entr, registro.Said, registro.Comp, registro.Codif, entrSaid)
+			_, err = insertRequi.Exec(registro.Empresa, registro.Id_requi, registro.Requi, registro.Num, registro.Ano, registro.Destino, registro.Codccusto, registro.Datae, registro.Dtlan, registro.Dtpag, registro.Entr, registro.Said, registro.Comp, registro.Codif, entrSaid)
 			if err != nil {
 				panic("Erro ao inserir na tabela requi: " + err.Error())
 			}

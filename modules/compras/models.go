@@ -194,154 +194,149 @@ type ModelProposta struct {
 	Codreduz nulls.String `db:"MATERIAL"`
 	Cadpro string       
 	Tpcontrole nulls.String `db:"TPCONTROLE_SALDO"`
+	Rodada nulls.Int    `db:"NRO_RODADA"`
 }
 
 type ModelPedidos struct {
 	Anoreduz  string       `db:"ANOREDUZ"`
 	Numped   nulls.String `db:"NUMPED"`
-	UltimoPedido nulls.String `db:"ULTIMO_PEDIDO"`
-	Ano        nulls.String `db:"ANO"`
+	Ano        nulls.String `db:"EX_ANO"`
 	IdCadped   int64        `db:"ID_CADPED"`
 	Sequencia  int64        `db:"SEQUENCIA"`
-	Npedlicit  nulls.String `db:"NPEDLICIT"`
-	IdCadpedlicit nulls.Int    `db:"ID_CADPEDLIT"`
+	Cabecalho  int64        `db:"CABECALHO"`
+	IdCadpedlicit nulls.Int    `db:"IDCADPED_LICIT"`
 	Codif      nulls.String `db:"CODIF"`
-	Codccusto  nulls.Int    `db:"CODCCUSTO"`
-	Datped    nulls.Time   `db:"DATPED"`
+	Codccusto  nulls.Int    `db:"CENTROCUSTO"`
+	Datped    nulls.Time   `db:"DT_EMISSAO"`
 	Ficha      nulls.Int    `db:"FICHA"`
 	Entrou     nulls.String `db:"ENTROU"`
 	Numlic     nulls.Int    `db:"NUMLIC"`
-	Proclic    nulls.String `db:"PROCLIC"`
-	Localentg  nulls.String `db:"localentg"`
-	Condpgto   nulls.String `db:"condpgto"`
-	Prozoentrega nulls.String `db:"prozoentrega"`
-	Obs        nulls.String `db:"obs"`
-	Aditamento  nulls.String `db:"aditamento"`
-	Contrato  nulls.String `db:"contrato"`
-	Item       int64        `db:"item"`
-	Material   nulls.String `db:"material"`
-	Qtd        nulls.Float64 `db:"qtd"`
-	Prcunt    nulls.Float64 `db:"prcunt"`
-	Prctot    nulls.Float64 `db:"prctot"`
-	Qtdanu    nulls.Float64 `db:"qtdanu"`
-	Prctotanu nulls.Float64 `db:"prctotanu"`
-	Categoria  nulls.String `db:"categoria"`
-	Grupo      nulls.String `db:"grupo"`
-	Modalidade nulls.String `db:"modalidade"`
-	Elemento    nulls.String `db:"elemento"`
-	Desdobro    nulls.String `db:"desdobro"`
-	Vingrupo  nulls.String `db:"vingrupo"`
-	Vincodigo nulls.String `db:"vincodigo"`
-	Destino   nulls.String `db:"destino"`
-	Pkemp  nulls.Int    `db:"pkemp"`
-	Empresa   int64        `db:"empresa"`
+	Localentg  nulls.String `db:"LOCAL_ENTREGA"`
+	Condpgto   nulls.String `db:"COND_PAGTO"`
+	Obs        nulls.String `db:"OBS"`
+	Contrato  nulls.String `db:"CONTRATO"`
+	Item       int64        `db:"ITEM"`
+	Material   nulls.String `db:"MATERIAL"`
+	Qtd        nulls.Float64 `db:"QTD"`
+	Prcunt    nulls.Float64 `db:"PRCUNT"`
+	Prctot    nulls.Float64 `db:"PRCTOT"`
+	Qtdanu    nulls.Float64 `db:"QTDANU"`
+	Prctotanu nulls.Float64 `db:"PRCTOTANU"`
+	Categoria  nulls.String `db:"CATEGORIA"`
+	Grupo      nulls.String `db:"GRUPO"`
+	Modalidade nulls.String `db:"MODALIDADE"`
+	Elemento    nulls.String `db:"ELEMENTO"`
+	Desdobro    nulls.String `db:"DESDOBRO"`
+	Vingrupo  nulls.String `db:"VINGRUPO"`
+	Vincodigo nulls.String `db:"VINCODIGO"`
+	Destino   nulls.String `db:"DESTINO"`
+	Pkemp  nulls.Int    `db:"PKEMP"`
+	Empresa   int64        `db:"EMPRESA"`
 	Cadpro string
 }
 
 type ModelIcadreq struct {
-	Id_requi   int           `db:"id_requi"`
-	Requi      string        `db:"requi"`
-	Codccusto  string        `db:"codccusto"`
-	Empresa   string        `db:"empresa"`
-	Item       int           `db:"item"`
-	Destino    string        `db:"destino"`
-	Cadpro     string        `db:"codreduz"`
-	Quan1      nulls.Float64 `db:"quan1"`
-	Quan2      nulls.Float64 `db:"quan2"`
-	Vaun1      nulls.Float64 `db:"vaun1"`
-	Vaun2      nulls.Float64 `db:"vaun2"`
-	Vato1      nulls.Float64 `db:"vato1"`
-	Vato2      nulls.Float64 `db:"vato2"`
+	Id_requi   int           `db:"ID_REQUI"`
+	Requi      string        `db:"REQUI"`
+	Codccusto  string        `db:"CODCCUSTO"`
+	Empresa   string        `db:"EMPRESA"`
+	Item       int           `db:"ITEM"`
+	Destino    string        `db:"DESTINO"`
+	Cadpro     string        `db:"CODREDUZ"`
+	Quan1      nulls.Float64 `db:"QUAN1"`
+	Quan2      nulls.Float64 `db:"QUAN2"`
+	Vaun1      nulls.Float64 `db:"VAUN1"`
+	Vaun2      nulls.Float64 `db:"VAUN2"`
+	Vato1      nulls.Float64 `db:"VATO1"`
+	Vato2      nulls.Float64 `db:"VATO2"`
 }
 
 type ModelRequi struct {
-	Id_requi  int          `db:"id_requi"`
-	Requi     string       `db:"requi"`
-	Num       int          `db:"num"`
-	Ano       int          `db:"exercicio"`
-	Destino   string       `db:"destino"`
-	Codccusto string       `db:"codccusto"`
-	Datae     nulls.Time    `db:"datae"`
-	Dtlan     nulls.Time    `db:"dtlan"`
-	Dtpag     nulls.Time    `db:"dtpag"`
-	Comp      string       `db:"comp"`
-	Codif     nulls.String `db:"fornecedor"`
-	Docum     nulls.String `db:"docum"`
-	Tipo      string       `db:"tipomov"`
+	Id_requi  int          `db:"ID_REQUI"`
+	Requi     string       
+	Num       string          
+	Ano       int          `db:"ANO"`
+	Destino   string       `db:"DESTINO"`
+	Codccusto string       `db:"CODCCUSTO"`
+	Datae     nulls.Time    `db:"DATAE"`
+	Dtlan     nulls.Time    `db:"DTLAN"`
+	Dtpag     nulls.Time    `db:"DTPAG"`
+	Comp      string       `db:"COMP"`
+	Codif     nulls.String `db:"CODIF"`
+	Docum     nulls.String `db:"DOCUM"`
+	Tipo      string       `db:"TIPOMOV"`
 	Entr      string
 	Said      string
-	Empresa   string      	 `db:"entidade"`
-	Item       int           `db:"item"`
-	Cadpro     string        `db:"codreduz"`
+	Empresa   string      	 `db:"ENTIDADE"`
+	Item       int           `db:"ITEM"`
+	Cadpro     string        `db:"CODREDUZ"`
 	Quan1      float64 
 	Quan2      float64 
 	Vaun1      float64 
 	Vaun2      float64
 	Vato1      float64
 	Vato2      float64
-	Quantidade float64
-	ValorUnit  float64
-	ValorTotal float64
-	Numped     nulls.String `db:"numped"`
+	Quantidade float64       `db:"QUANTIDADE"`
+	ValorUnit  float64       `db:"VALORUNITARIO"`
+	ValorTotal float64       `db:"VALORTOTAL"`
+	Numped     nulls.String `db:"NUMPED"`
 }
 
 type ModelMotor struct {
-	Cod       string       `db:"cod"`
-	Nome      string       `db:"nome"`
-	Cnh       nulls.String `db:"cnh"`
-	Categcnh  nulls.String `db:"categcnh"`
-	Dtvenccnh nulls.Time   `db:"dtvenccnh"`
+	Cod       string       `db:"COD"`
+	Nome      string       `db:"NOME"`
+	Cnh       nulls.String `db:"CNH"`
+	Categcnh  nulls.String `db:"CATEGCNH"`
+	Dtvenccnh nulls.Time   `db:"DTVENCCNH"`
 }
 
 type ModelVeiculo struct {
-	Placa 	string       `db:"placa"`
-	Sequencia int64        `db:"sequencia"`
-	Modelo string       `db:"modelo"`
-	Chassi string       `db:"chassi"`
-	Cor    string       `db:"cor"`
-	Ano    nulls.Int    `db:"ano"`
-	Anomod nulls.Int    `db:"anomod"`
-	Renavam string       `db:"renavam"`
-	Aquisicao nulls.Time   `db:"aquisicao"`
-	Motorista nulls.String `db:"motorista"`
-	CodigoMarcaVeiculo nulls.String `db:"codigo_marca_vei"`
-	Kminicial nulls.Float64 `db:"kminicial"`
-	Obs     nulls.String `db:"obs"`
-	Combustivel nulls.String `db:"combustivel"`
-	Alienacao nulls.Time   `db:"alienacao"`
-	Licenca nulls.Time   `db:"licenca"`
-	Trocaoleo nulls.Float64 `db:"trocaoleo"`
+	Placa 	string       `db:"PLACA"`
+	Sequencia int64        `db:"SEQUENCIA"`
+	Modelo string       `db:"MODELO"`
+	Chassi string       `db:"CHASSI"`
+	Cor    string       `db:"COR"`
+	Ano    nulls.Int    `db:"ANO"`
+	Anomod nulls.Int    `db:"ANOMOD"`
+	Renavam string       `db:"RENAVAM"`
+	Aquisicao nulls.Time   `db:"AQUISICAO"`
+	Motorista nulls.String `db:"MOTORISTA"`
+	CodigoMarcaVeiculo nulls.String `db:"CODIGO_MARCA_VEI"`
+	Kminicial nulls.Float64 `db:"KMINICIAL"`
+	Obs     nulls.String `db:"OBS"`
+	Combustivel nulls.String `db:"COMBUSTIVEL"`
+	Alienacao nulls.Time   `db:"ALIENACAO"`
+	Licenca nulls.Time   `db:"LICENCA"`
+	Trocaoleo nulls.Float64 `db:"TROCAOLEO"`
+	Ordem nulls.String `db:"ORDEM"`
 }
 
 type ModelAbastecimento struct {
-	Id_requi  int          `db:"id_requi"`
-	Requi     string       `db:"requi"`
-	Num       int          `db:"num"`
-	Ano       int          `db:"exercicio"`
-	Datae     nulls.Time    `db:"datae"`
-	Dtlan     nulls.Time    `db:"dtlan"`
-	Dtpag     nulls.Time    `db:"dtpag"`
-	Codif     nulls.String `db:"fornecedor"`
-	Docum     nulls.String `db:"docum"`
+	Id_requi  int          `db:"ID_REQUI"`
+	Requi     string       `db:"REQUI"`
+	Num       string          `db:"NUM"`
+	Ano       int          `db:"ANO"`
+	Datae     nulls.Time    `db:"DATAE"`
+	Dtlan     nulls.Time    `db:"DTLAN"`
+	Dtpag     nulls.Time    `db:"DTPAG"`
+	Codif     nulls.String `db:"CODIF"`
+	Docum     nulls.String `db:"DOCUM"`
 	Codccusto string       
 	Destino  string
-	Comp      string       `db:"comp"`
-	Tipo      string       `db:"tipomov"`
+	Comp      string       `db:"COMP"`
+	Tipo      string       `db:"TIPOMOV"`
 	Entr      string
 	Said      string
-	Empresa   string      	 `db:"entidade"`
-	Item       int           `db:"item"`
-	Cadpro     string        `db:"codreduz"`
-	Quan1      float64 
-	Quan2      float64 
-	Vaun1      float64 
-	Vaun2      float64
-	Vato1      float64
-	Vato2      float64
-	Quantidade float64
-	ValorUnit  float64
-	ValorTotal float64
-	Motorista nulls.String `db:"motorista"`
-	Placa     nulls.String `db:"placa"`
-	Km 	   nulls.Float64 `db:"km"`
+	Empresa   string      	 `db:"ENTIDADE"`
+	Item       int           `db:"ITEM"`
+	Cadpro     string        `db:"CODREDUZ"`
+	Quan1      float64       `db:"QUAN1"`
+	Quan2      float64       `db:"QUAN2"`
+	Vaun1      float64       `db:"VAUN1"`
+	Vaun2      float64        `db:"VAUN2"`
+	Vato1      float64    `db:"VATO1"`
+	Vato2      float64  `db:"VATO2"`
+	Motorista nulls.String `db:"MOTORISTA"`
+	Placa     nulls.String `db:"PLACA"`
+	Km 	   nulls.Float64 `db:"KM"`
 }

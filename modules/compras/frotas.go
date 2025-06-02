@@ -21,7 +21,7 @@ func Motor(p *mpb.Progress) {
 	if err != nil {
 		panic(fmt.Sprintf("erro ao iniciar transação: %v", err.Error()))
 	}
-	defer tx.Rollback()
+	defer tx.Commit()
 
 	insert, err := tx.Prepare(`INSERT
 		INTO
@@ -38,7 +38,7 @@ func Motor(p *mpb.Progress) {
 
 	query := `SELECT
 		e.PES_NRO cod,
-		p.nome nome,
+		substr(p.nome,1,50) nome,
 		CNH_NRO cnh,
 		CNH_CATEG categcnh,
 		CNH_VENCTO dtvenccnh
@@ -84,7 +84,7 @@ func Motor(p *mpb.Progress) {
 }
 
 func VeiculoTipo(p *mpb.Progress) {
-	modules.LimpaTabela([]string{"veiculotipo"})
+	modules.LimpaTabela([]string{"veiculo_tipo"})
 
 	cnxFdb, cnxOra, err := connection.GetConexoes()
 	if err != nil {
@@ -97,7 +97,7 @@ func VeiculoTipo(p *mpb.Progress) {
 	if err != nil {
 		panic(fmt.Sprintf("erro ao iniciar transação: %v", err.Error()))
 	}
-	defer tx.Rollback()
+	defer tx.Commit()
 
 	query := `SELECT
 		'insert into veiculo_tipo (codigo_tip, descricao_tip) values ('||nro||', '''||nome||''');'
@@ -122,7 +122,7 @@ func VeiculoTipo(p *mpb.Progress) {
 }
 
 func VeiculoMarca(p *mpb.Progress) {
-	modules.LimpaTabela([]string{"veiculomarca"})
+	modules.LimpaTabela([]string{"veiculo_marca"})
 
 	cnxFdb, cnxOra, err := connection.GetConexoes()
 	if err != nil {
@@ -135,7 +135,7 @@ func VeiculoMarca(p *mpb.Progress) {
 	if err != nil {
 		panic(fmt.Sprintf("erro ao iniciar transação: %v", err.Error()))
 	}
-	defer tx.Rollback()
+	defer tx.Commit()
 
 	query := `SELECT
 		'insert into veiculo_marca(codigo_mar,descricao_mar,codigo_tip_mar) values (' || codigo_mar || ', ''' || descricao_mar || ''', ' || codigo_tip_mar || ');'
@@ -144,14 +144,14 @@ func VeiculoMarca(p *mpb.Progress) {
 		SELECT
 			nro codigo_mar,
 			nome descricao_mar,
-			(
+			coalesce((
 			SELECT
 				v.etipveic_nro
 			FROM
 				system.e_veiculo v
 			WHERE
 				v.EMARCVE_NRO = e.nro
-				AND ROWNUM = 1) codigo_tip_mar
+				AND ROWNUM = 1), 1) codigo_tip_mar
 		FROM
 			system.e_marca_veic e) qr`
 
@@ -186,7 +186,7 @@ func Veiculo(p *mpb.Progress) {
 	if err != nil {
 		panic(fmt.Sprintf("erro ao iniciar transação: %v", err.Error()))
 	}
-	defer tx.Rollback()
+	defer tx.Commit()
 
 	insert, err := tx.Prepare(`INSERT
 		INTO
@@ -214,26 +214,33 @@ func Veiculo(p *mpb.Progress) {
 	}
 	defer insert.Close()
 
-	query := `select
-			PLACA_LETRAS || PLACA_NUMEROS placa,
-			v.nro sequencia,
-			substr(v.nome,1,45) modelo,
-			nro_chassi chassi,
-			cor,
-			ano_fabr ano,
-			ano_mod anomod,
-			nro_renavam renavam,
-			DT_AQUISICAO aquisicao,
-			EMOT_PES_NRO motorista,
-			EMARCVE_NRO codigo_marca_vei,
-			km kminicial,
-			obs,
-			substr(c.nome,1,1) combustivel,
-			DT_VENDA alienacao,
-			VENCTO_LICENC licenca,
-			TROLEO_KM trocaoleo
-	from system.E_VEICULO V
-			left join system.E_TIPO_COMB c on c.nro = v.ETPCOMB_NRO`
+	query := `WITH veiculos_ordenados AS (
+	SELECT
+		PLACA_LETRAS || PLACA_NUMEROS AS placa,
+		v.nro AS sequencia,
+		SUBSTR(v.nome, 1, 45) AS modelo,
+		nro_chassi AS chassi,
+		cor,
+		ano_fabr AS ano,
+		ano_mod AS anomod,
+		nro_renavam AS renavam,
+		DT_AQUISICAO AS aquisicao,
+		EMOT_PES_NRO AS motorista,
+		EMARCVE_NRO AS codigo_marca_vei,
+		km AS kminicial,
+		obs,
+		SUBSTR(c.nome, 1, 1) AS combustivel,
+		DT_VENDA AS alienacao,
+		VENCTO_LICENC AS licenca,
+		TROLEO_KM AS trocaoleo,
+		ROW_NUMBER() OVER (PARTITION BY PLACA_LETRAS || PLACA_NUMEROS
+		ORDER BY ano_mod DESC, DT_AQUISICAO DESC) AS ordem
+	FROM system.E_VEICULO v
+	LEFT JOIN system.E_TIPO_COMB c ON c.nro = v.ETPCOMB_NRO
+	)
+	SELECT *
+	FROM veiculos_ordenados
+	WHERE ordem = 1`
 
 	totalLinhas, err := modules.CountRows(query)
 	if err != nil {	
@@ -262,6 +269,10 @@ func Veiculo(p *mpb.Progress) {
 			panic(fmt.Sprintf("erro ao decodificar cor: %v", err.Error()))
 		}
 
+		if registro.Placa, err = modules.DecodeToWin1252(registro.Placa); err != nil {
+			panic(fmt.Sprintf("erro ao decodificar placa: %v", err.Error()))
+		}
+
 		if _, err := insert.Exec(
 			registro.Placa,
 			registro.Sequencia,
@@ -285,10 +296,27 @@ func Veiculo(p *mpb.Progress) {
 		}
 		bar.Increment()
 	}
+	tx.Commit()
+
+	if _, err = cnxFdb.Exec(`INSERT INTO centrocusto (poder, orgao, destino, CCUSTO, "DESCR", codccusto, empresa, ocultar, placa)
+	SELECT
+		'02' poder,
+		'01' orgao,
+		'000000001' destino,
+		'001' ccusto,
+		modelo,
+		gen_id(pge_centrocusto, 1),
+		2,
+		'N',
+		placa
+	FROM
+		veiculo a`); err != nil {
+		panic(fmt.Sprintf("erro ao inserir centro de custo: %v", err.Error()))
+	}
 }
 
 func Abastecimento(p *mpb.Progress) {
-	modules.LimpaTabela([]string{"abastecimento"})
+	modules.LimpaTabela([]string{"icadreq where placa is not null", "requi where not exists (select 1 from icadreq where icadreq.id_requi = requi.id_requi)"})
 
 	cnxFdb, cnxOra, err := connection.GetConexoes()
 	if err != nil {
@@ -301,7 +329,7 @@ func Abastecimento(p *mpb.Progress) {
 	if err != nil {
 		panic(fmt.Sprintf("erro ao iniciar transação: %v", err.Error()))
 	}
-	defer tx.Rollback()
+	defer tx.Commit()
 
 	insertRequi, err := tx.Prepare(`INSERT
 		INTO
@@ -314,12 +342,14 @@ func Abastecimento(p *mpb.Progress) {
 		codccusto,
 		datae,
 		dtlan,
+		dtpag,
 		entr,
 		said,
 		comp,
 		codif,
-		entr_said)
-	VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		entr_said,
+		motorista)
+	VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		panic("Erro ao preparar insert: " + err.Error())
 	}
@@ -332,13 +362,13 @@ func Abastecimento(p *mpb.Progress) {
 		codccusto,
 		empresa,
 		item,
+		cadpro,
 		quan1,
 		quan2,
 		vaun1,
 		vaun2,
 		vato1,
 		vato2,
-		cadpro,
 		destino,
 		km,
 		placa)
@@ -378,6 +408,12 @@ func Abastecimento(p *mpb.Progress) {
 	where extract(year from DT_EMISSAO) = %v
 	order by DT_EMISSAO, r.nro`, modules.Cache.Empresa, modules.Cache.Ano)
 
+	totalRows, err := modules.CountRows(query)
+	if err != nil {
+		panic(fmt.Sprintf("erro ao contar linhas: %v", err.Error()))
+	}
+	bar := modules.NewProgressBar(p, totalRows, "Abastecimento")
+
 	cacheCentrocusto := make(map[string][]string)
 	queryCentroCusto := `SELECT placa, codccusto, destino from centrocusto where placa is not null`
 	rowsCentroCusto, err := cnxFdb.Query(queryCentroCusto)
@@ -392,6 +428,20 @@ func Abastecimento(p *mpb.Progress) {
 			panic(fmt.Sprintf("erro ao escanear registro de centro de custo: %v", err.Error()))
 		}
 		cacheCentrocusto[placa] = []string{codccusto, destino}
+	}
+
+	cacheCadest := make(map[string]string)
+	queryCadest, err := cnxFdb.Query(`select codreduz, cadpro from cadest`)
+	if err != nil {
+		panic("Erro ao consultar cadest: " + err.Error())
+	}
+	defer queryCadest.Close()
+	for queryCadest.Next() {
+		var codreduz, cadpro string
+		if err := queryCadest.Scan(&codreduz, &cadpro); err != nil {
+			panic("Erro ao ler cadest: " + err.Error())
+		}
+		cacheCadest[codreduz] = cadpro
 	}
 
 	rows, err := cnxOra.Queryx(query)
@@ -411,6 +461,10 @@ func Abastecimento(p *mpb.Progress) {
 			panic(fmt.Sprintf("erro ao decodificar cadpro: %v", err.Error()))
 		}
 
+		if registro.Placa.String, err = modules.DecodeToWin1252(registro.Placa.String); err != nil {
+			panic(fmt.Sprintf("erro ao decodificar placa: %v", err.Error()))
+		}
+
 		CentroCustoInfo := cacheCentrocusto[registro.Placa.String]
 		if CentroCustoInfo == nil {
 			panic(fmt.Sprintf("centro de custo não encontrado para placa: %s", registro.Placa.String))
@@ -428,13 +482,20 @@ func Abastecimento(p *mpb.Progress) {
 			registro.Codccusto,
 			registro.Datae,
 			registro.Dtlan,
-			registro.Entr,
-			registro.Said,
+			registro.Dtpag,
+			"S",
+			"S",
 			registro.Comp,
 			registro.Codif,
 			entrSaid,
+			registro.Motorista,
 		); err != nil {
 			panic(fmt.Sprintf("erro ao inserir requisição: %v", err.Error()))
+		}
+
+		registro.Cadpro = cacheCadest[registro.Cadpro]
+		if registro.Cadpro == "" {
+			panic(fmt.Sprintf("cadpro não encontrado para material: %s", registro.Cadpro))
 		}
 
 		if _, err := insertIcadreq.Exec(
@@ -443,18 +504,19 @@ func Abastecimento(p *mpb.Progress) {
 			registro.Codccusto,
 			registro.Empresa,
 			registro.Item,
+			registro.Cadpro,
 			registro.Quan1,
 			registro.Quan2,
 			registro.Vaun1,
 			registro.Vaun2,
 			registro.Vato1,
 			registro.Vato2,
-			registro.Cadpro,
 			registro.Destino,
 			registro.Km,
 			registro.Placa,
 		); err != nil {
 			panic(fmt.Sprintf("erro ao inserir item de requisição: %v", err.Error()))
 		}
+		bar.Increment()
 	}
 }

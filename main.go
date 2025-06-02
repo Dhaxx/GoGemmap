@@ -1,7 +1,7 @@
 package main
 
 import (
-	// "GoGemmap/modules"
+	"GoGemmap/modules"
 	"GoGemmap/modules/compras"
 	// "GoGemmap/modules/patrimonio"
 	"sync"
@@ -17,33 +17,33 @@ func main() {
 	pc := mpb.New()
 	go func() {
 		defer wg.Done()
-		// modules.LimpaCompras()
-		// compras.Cadunimedida(pc)
-		// compras.Grupo(pc)
-		// compras.Subgrupo(pc)
-		// compras.Cadest(pc)
-		// compras.Destino(pc)
-		// compras.CentroCusto(pc)
+		modules.LimpaCompras()
+		compras.Cadunimedida(pc)
+		compras.Grupo(pc)
+		compras.Subgrupo(pc)
+		compras.Cadest(pc)
+		compras.Destino(pc)
+		compras.CentroCusto(pc)
 
-		// compras.Cadorc(pc)
-		// compras.Fcadorc(pc)
-		// compras.Vcadorc(pc)
+		compras.Cadorc(pc)
+		compras.Fcadorc(pc)
+		compras.Vcadorc(pc)
 
-		// modules.LimpaLicitacoes()
-		// compras.Cadlic(pc)
-		// compras.Prolics(pc)
-		// compras.Cadprolic(pc)
+		modules.LimpaLicitacoes()
+		compras.Cadlic(pc)
+		compras.Prolics(pc)
+		compras.Cadprolic(pc)
 		compras.CadproProposta(pc)
-		// compras.Cadped(pc)
+		compras.Cadped(pc)
 
-		// compras.Motor(pc)
-		// compras.VeiculoTipo(pc)
-		// compras.VeiculoMarca(pc)
-		// compras.Veiculo(pc)
-		// compras.Abastecimento(pc)
+		compras.Motor(pc)
+		compras.VeiculoTipo(pc)
+		compras.VeiculoMarca(pc)
+		compras.Veiculo(pc)
+		compras.Abastecimento(pc)
 		
-		// compras.SaldoInicial(pc)
-		// compras.Requi(pc)
+		compras.SaldoInicial(pc)
+		compras.Requi(pc)
 	}()
 
 	// Rotina de PATRIMÔNIO
