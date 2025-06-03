@@ -24,7 +24,7 @@ func Cadpat(p *mpb.Progress) {
 	}
 	defer tx.Commit()
 
-	query := fmt.Sprintf(` SELECT
+	query := fmt.Sprintf(`SELECT
         DISTINCT(P.NRO) codigo_pat,
 		%v empresa_pat,
         '001' codigo_gru_pat,

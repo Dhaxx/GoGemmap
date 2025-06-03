@@ -36,3 +36,16 @@ type ModelCadpat struct {
 	CodigoBaiPat    nulls.Int     `db:"CODIGO_BAI_PAT"`
 	ChapaPatAlt     nulls.String  `db:"CHAPA_PAT_ALT"`
 }
+
+type ModelMovbem struct {
+	CodigoMov       int64         `db:"CODIGO_MOV"`
+	EmpresaMov      int64         `db:"EMPRESA_MOV"`
+	CodigoPatMov    int64         `db:"CODIGO_PAT_MOV"`
+	DataMov         nulls.Time    `db:"DATA_MOV"`
+	TipoMov         nulls.String  `db:"TIPO_MOV"`
+	CodigoSetMov    nulls.String  `db:"CODIGO_SET_MOV"`
+	HistoricoMov    nulls.String  `db:"HISTORICO_MOV"`
+	ValorMov        nulls.Float64 `db:"VALOR_MOV"`
+	DepreciacaoMov  nulls.String  `db:"DEPRECIACAO_MOV"`
+	DtContabil	  nulls.Time    `db:"DATA_MOV"`
+}
