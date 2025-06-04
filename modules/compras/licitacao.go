@@ -569,6 +569,7 @@ func Cadprolic(p *mpb.Progress) {
 			c.numlic = a.numlic
 			AND a.lotelic = c.lotelic)`)
 
+	modules.Trigger("TBIU_CADPRO_STATUS", false)
 	cnxFdb.Exec(`INSERT INTO cadpro_status (numlic, sessao, itemp, telafinal)
 		SELECT b.NUMLIC, 1 AS sessao, a.item, 'I_ENCERRAMENTO'
 	FROM CADPROLIC a
@@ -576,7 +577,8 @@ func Cadprolic(p *mpb.Progress) {
 	WHERE NOT EXISTS (
 			SELECT 1
 			FROM cadpro_status c
-			WHERE a.numlic = c.numlic and a.item = c.item);`)
+			WHERE a.numlic = c.numlic and a.item = c.item)`)
+	modules.Trigger("TBIU_CADPRO_STATUS", true)
 }
 
 func CadproProposta(p *mpb.Progress) {
@@ -792,7 +794,7 @@ func CadproProposta(p *mpb.Progress) {
 	(select 1 from cadpro_lance cl where cp.codif = cl.codif and cl.itemp = cp.itemp and cl.numlic = cp.numlic)`)
 
 	cnxFdb.Exec(`INSERT into cadpro_final (numlic, ult_sessao, codif, itemp, vaunf, vatof, STATUS, subem)
-	SELECT numlic, sessao, codif, itemp, vaunl, vatol, CASE WHEN status = 'F' THEN 'C' ELSE status end, subem FROM cadpro_proposta
+	SELECT numlic, sessao, codif, itemp, vaun1, vato1, CASE WHEN status = 'F' THEN 'C' ELSE status end, subem FROM cadpro_proposta
 	WHERE NOT EXISTS (SELECT 1 FROM cadpro_final f WHERE f.numlic = cadpro_proposta.numlic AND f.itemp = cadpro_proposta.itemp AND f.codif = cadpro_proposta.codif)`)
 
 	cnxFdb.Exec(`INSERT INTO CADPRO (

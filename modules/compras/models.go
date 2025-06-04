@@ -340,3 +340,12 @@ type ModelAbastecimento struct {
 	Placa     nulls.String `db:"PLACA"`
 	Km 	   nulls.Float64 `db:"KM"`
 }
+
+type ModelCadproSaldoAnterior struct {
+	Ano 	  string       `db:"ANO"`
+	Numlic int        `db:"NUMLIC"`
+	Item   int        `db:"ITEM"`
+	Codreduz string 	  `db:"MATERIAL"`
+	QtdPed  float64		`db:"QTDPED"`
+	VlrPed  float64		`db:"VATOPED"`
+}

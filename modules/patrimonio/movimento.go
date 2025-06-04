@@ -102,8 +102,9 @@ func Movbem(p *mpb.Progress) {
 		historico_mov,
 		valor_mov,
 		depreciacao_mov,
-		dt_contabil)
-	values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		dt_contabil,
+		hash_sinc)
+	values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		panic(fmt.Sprintf("Erro ao preparar insert: %v", err))
 	}
@@ -130,6 +131,7 @@ func Movbem(p *mpb.Progress) {
 			registro.ValorMov,
 			registro.DepreciacaoMov,
 			registro.DtContabil,
+			registro.CodigoMov,
 		); err != nil {
 			panic(fmt.Sprintf("Erro ao executar insert: %v", err))
 		}

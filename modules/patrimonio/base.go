@@ -97,7 +97,7 @@ func Cadbai(p *mpb.Progress) {
 
 	barCadBai := modules.NewProgressBar(p, 1, "CADBAI")
 
-	query := `SELECT DISTINCT P.FLG_MODAL_BX codigo, CASE WHEN COALESCE(bx_valor,0) <> 0 THEN 'ALIENAÇÃO' ELSE 'BAIXA' END descricao_bai   FROM SYSTEM.D3_BEM_PATR P WHERE (P.BX_MOTIVO IS NOT NULL) `
+	query := `SELECT DISTINCT P.FLG_MODAL_BX codigo, CASE WHEN COALESCE(bx_valor,0) <> 0 THEN 'ALIENACAO' ELSE 'BAIXA' END descricao_bai   FROM SYSTEM.D3_BEM_PATR P WHERE (P.BX_MOTIVO IS NOT NULL) `
 	rows, err := cnxOra.Query(query)
 	if err != nil {
 		fmt.Printf("Erro ao executar query: %v", err)
