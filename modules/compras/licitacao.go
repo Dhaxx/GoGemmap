@@ -625,6 +625,7 @@ func CadproProposta(p *mpb.Progress) {
 	}
 	defer insert.Close()
 
+	// PROPOSTA DE LICITANTES
 	query := `WITH max_rodada AS (
 		SELECT
 			LICIT_LIC_NRO AS numlic,
@@ -787,6 +788,106 @@ func CadproProposta(p *mpb.Progress) {
 		}
 		bar.Increment()
 	}
+
+	// PROPOSTA DE DISPENSAS
+	query = fmt.Sprintf(`WITH ranked_items AS (
+	SELECT
+		dm.NOME,
+		dli.NROSEQ,
+		dlv.NROSEQ AS SEQ_VLR,
+		dlv.LICIT_MTSV_NRO codreduz,
+		dli.FLG_ANEXO,
+		dlv.LICIT_LIC_NRO AS numlic,
+		dlv.QUANT,
+		dlv.VLR_UNIT,
+		dlv.VLR_TOTAL,
+		dlv.LICFOR_FO_PES_NRO codif, 
+		FLG_MENOR_PRECO subem,
+		COUNT(*) OVER (PARTITION BY dlv.LICIT_LIC_NRO, dlv.NROSEQ) AS QTD_DUPLICADAS,
+		ROW_NUMBER() OVER (
+			PARTITION BY dlv.LICIT_LIC_NRO, dlv.NROSEQ
+			ORDER BY dlv.VLR_UNIT ASC
+		) AS rn
+	FROM
+		system.D_LICIT_VLR dlv
+	JOIN system.D_MATSERV dm ON dlv.LICIT_MTSV_NRO = dm.NRO
+	JOIN system.D_LIC_ITENS dli ON dlv.LICIT_LIC_NRO = dli.LIC_NRO AND dlv.LICIT_MTSV_NRO = dli.MTSV_NRO AND dli.flg_anexo = 'N'
+	JOIN system.D_LICITACAO dl ON dl.NRO = dlv.LICIT_LIC_NRO AND dl.EX_ANO >= %v
+	--WHERE dlv.flg_menor_preco = 1
+	)
+	SELECT
+		'1' sessao, 
+		codif,
+		SEQ_VLR item,
+		ranked_items.QUANT QUAN1,
+		ranked_items.VLR_UNIT VAUN1,
+		ranked_items.VLR_TOTAL VATO1,
+		numlic,
+		'C' status,
+		subem,
+		NULL marca,
+		'S' item_lance,
+		'00000001' lotelic,
+		CODREDUZ material,
+		CASE WHEN ranked_items.QUANT = 1 THEN 'V' ELSE 'Q' END tpcontrole_saldo,
+		1 nro_rodada
+	FROM
+		ranked_items
+	WHERE SUBEM = 1 AND  NOT EXISTS (SELECT 1
+        FROM system.D_LANCES l
+        WHERE 
+            l.LICIT_LIC_NRO = ranked_items.numlic
+            AND l.LICIT_MTSV_NRO = ranked_items.CODREDUZ )
+	ORDER BY
+		numlic,
+		SEQ_VLR`, modules.Cache.Ano-2)
+	totalRows, err = modules.CountRows(query)
+	if err != nil {
+		panic(fmt.Sprintf("erro ao contar linhas: %v", err.Error()))
+	}
+	bar = modules.NewProgressBar(p, totalRows, "Cadpro Proposta - DISPENSAS")
+
+	rows, err = cnxOra.Queryx(query)
+	if err != nil {
+		panic(fmt.Sprintf("erro ao executar query cadpro_proposta - dispensas: %v", err.Error()))
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var registro ModelProposta
+
+		if err := rows.StructScan(&registro); err != nil {
+			panic(fmt.Sprintf("erro ao ler resultados da consulta cadpro_proposta - dispensas: %v", err.Error()))
+		}
+
+		registro.Cadpro = cacheCadest[registro.Codreduz.String]
+		if registro.Cadpro == "" {
+			panic(fmt.Sprintf("cadpro não encontrado para o código: %s", registro.Codreduz.String))
+		}
+
+		if _, err = insert.Exec(
+			registro.Sessao,
+			registro.Codif,
+			registro.Item,
+			registro.Item,
+			registro.Quan1,
+			registro.Vaun1,
+			registro.Vato1,
+			registro.Numlic,
+			registro.Status,
+			registro.Subem,
+			registro.Marca,
+			registro.ItemLance,
+			registro.Lotelic,
+			registro.Cadpro,
+			registro.Tpcontrole,
+			registro.QtdAdt,
+			registro.VaunAdt,
+		); err != nil {
+			panic(fmt.Sprintf("erro ao inserir cadpro_proposta: %v", err.Error()))
+		}
+		bar.Increment()
+	}	
 	tx.Commit()
 
 	cnxFdb.Exec(`insert into cadpro_lance (sessao, rodada, codif, itemp, vaunl, vatol, status, subem, numlic)

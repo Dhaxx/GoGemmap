@@ -149,4 +149,68 @@ func Movbem(p *mpb.Progress) {
 	`); err != nil {
 		panic(fmt.Sprintf("Erro ao executar merge: %v", err))
 	}
+
+	if _, err = cnxFdb.Exec(`EXECUTE BLOCK AS
+	BEGIN
+		UPDATE
+		pt_cadpat
+	SET
+		dt_contabil = CASE
+			WHEN dtpag_pat IS NULL THEN dtlan_pat
+			ELSE dtpag_pat
+		END
+	WHERE
+		dt_contabil IS NULL;
+
+	MERGE
+	INTO
+		pt_cadpat a
+			USING (
+		SELECT
+			codigo_pat_mov,
+			sum(valor_mov) total
+		FROM
+			pt_movbem
+		GROUP BY
+			1) b
+
+	  ON
+		a.codigo_pat = b.codigo_pat_mov
+		WHEN MATCHED THEN
+	UPDATE
+	SET
+		a.valatu_pat = b.total;
+
+	INSERT
+		INTO
+		PT_MOVBEM (CODIGO_MOV,
+		EMPRESA_MOV,
+		CODIGO_PAT_MOV,
+		TIPO_MOV,
+		CODIGO_SET_MOV,
+		HISTORICO_MOV,
+		VALOR_MOV,
+		DEPRECIACAO_MOV,
+		data_mov,
+		DT_CONTABIL)
+
+	SELECT
+		gen_id(gen_pt_movbem_id,
+		1),
+		empresa_pat,
+		codigo_pat,
+		'B',
+		CODIGO_SET_ATU_PAT,
+		'BAIXA',
+		valatu_pat,
+		'N',
+		dtpag_pat,
+		dtpag_pat
+	FROM
+		pt_cadpat a
+	WHERE
+		dtpag_pat IS NOT NULL;
+	END;`); err != nil {
+		panic(fmt.Sprintf("Erro ao executar bloco: %v", err))
+	}
 }

@@ -33,7 +33,7 @@ func main() {
 		// compras.Cadlic(pc)
 		// compras.Prolics(pc)
 		// compras.Cadprolic(pc)
-		// compras.CadproProposta(pc)
+		compras.CadproProposta(pc)
 		// compras.Cadped(pc)
 
 		// compras.Motor(pc)
@@ -44,7 +44,7 @@ func main() {
 		
 		// compras.SaldoInicial(pc)
 		// compras.Requi(pc)
-		compras.CadproSaldoAnterior(pc)
+		// compras.CadproSaldoAnterior(pc)
 	}()
 
 	// Rotina de PATRIMÔNIO
