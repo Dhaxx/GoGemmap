@@ -627,17 +627,17 @@ func CadproProposta(p *mpb.Progress) {
 
 	// PROPOSTA DE LICITANTES
 	query := `WITH max_rodada AS (
-		SELECT
-			LICIT_LIC_NRO AS numlic,
-			LICFOR_FO_PES_NRO AS codif,
-			LICIT_MTSV_NRO AS material,
-			MAX(nro_rodada) AS nro_rodada
-		FROM
-			system.D_LANCES
-		GROUP BY
-			LICIT_LIC_NRO,
-			LICFOR_FO_PES_NRO,
-			LICIT_MTSV_NRO
+	SELECT
+		LICIT_LIC_NRO AS numlic,
+		LICFOR_FO_PES_NRO AS codif,
+		LICIT_MTSV_NRO AS material,
+		MAX(nro_rodada) AS nro_rodada
+	FROM
+		system.D_LANCES
+	GROUP BY
+		LICIT_LIC_NRO,
+		LICFOR_FO_PES_NRO,
+		LICIT_MTSV_NRO
 	)
 	SELECT 
 		1 sessao, 
@@ -840,7 +840,7 @@ func CadproProposta(p *mpb.Progress) {
             AND l.LICIT_MTSV_NRO = ranked_items.CODREDUZ )
 	ORDER BY
 		numlic,
-		SEQ_VLR`, modules.Cache.Ano-2)
+		SEQ_VLR`, modules.Cache.Ano-6)
 	totalRows, err = modules.CountRows(query)
 	if err != nil {
 		panic(fmt.Sprintf("erro ao contar linhas: %v", err.Error()))
@@ -1002,4 +1002,150 @@ func CadproProposta(p *mpb.Progress) {
 		AND NOT EXISTS(SELECT 1 FROM REGPRECOHIS X  
 		WHERE X.NUMLIC = B.NUMLIC AND X.CODIF = B.CODIF AND X.CADPRO = B.CADPRO AND X.CODCCUSTO = B.CODCCUSTO AND X.ITEM = B.ITEM);  
 	END;`)
+}
+
+func Aditamento(p *mpb.Progress) {
+	modules.Trigger("TBU_CADPRO", false)
+	cnxFdb, cnxOra, err := connection.GetConexoes()
+	if err != nil {
+		panic(fmt.Sprintf("erro ao obter conexões: %v", err.Error()))
+	}
+	defer cnxFdb.Close()
+	defer cnxOra.Close()
+
+	tx, err := cnxFdb.Begin()
+	if err != nil {
+		panic(fmt.Sprintf("erro ao iniciar transação: %v", err.Error()))
+	}
+	defer tx.Commit()
+
+	if _, err := tx.Exec(`update cadpro set qtdadt = quan1, vaunadt = vaun1, vatoadt = vato1 where qtdadt <> quan1`); err != nil {
+		panic(fmt.Sprintf("erro ao atualizar cadpro: %v", err.Error()))
+	}
+
+	update, err := tx.Prepare(`update cadpro set qtdadt = ?+quan1, vatoadt = (?+quan1)*vaun1 where numlic = ? and item = ? and subem = 1`);
+	if err != nil {
+		panic(fmt.Sprintf("erro ao preparar update cadpro: %v", err.Error()))
+	}
+	defer update.Close()
+
+	query := `SELECT
+		ped.LIC_NRO ,
+		i.MTSV_NRO ,
+		COALESCE(sum(i.QUANT), 0) qtd
+	FROM
+		SYSTEM.D_PED_ITENS i
+	JOIN SYSTEM.D_PED_LIC ped ON
+		ped.PED_NRO = i.PED_NRO
+	JOIN system.D_PEDIDO o ON
+		o.NRO = i.PED_NRO
+		AND o.FLG_TIPO = 2
+	GROUP BY
+		ped.LIC_NRO ,
+		i.MTSV_NRO`
+	
+	totalRows, err := modules.CountRows(query)
+	if err != nil {
+		panic(fmt.Sprintf("erro ao contar linhas: %v", err.Error()))
+	}
+	bar := modules.NewProgressBar(p, totalRows, "Aditamento")
+	
+	cacheCadprolic := make(map[string]int)
+	queryCadprolic, err := cnxFdb.Query("select numlic||'-'||codreduz key, item from cadprolic a join cadest b using (cadpro)")
+	if err != nil {
+		panic(fmt.Sprintf("erro ao consultar cadprolic: %v", err.Error()))
+	}
+	defer queryCadprolic.Close()
+	for queryCadprolic.Next() {
+		var key string
+		var item int
+		if err := queryCadprolic.Scan(&key, &item); err != nil {
+			panic(fmt.Sprintf("erro ao ler cadprolic: %v", err.Error()))
+		}
+		cacheCadprolic[key] = item
+	}
+
+	rows, err := cnxOra.Query(query)
+	if err != nil {
+		panic(fmt.Sprintf("erro ao executar query aditamento: %v", err.Error()))
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			numlic, codreduz int
+			qtd              float64
+		)
+		if err := rows.Scan(&numlic, &codreduz, &qtd); err != nil {
+			panic(fmt.Sprintf("erro ao ler resultado da query aditamento: %v", err.Error()))
+		}
+
+		key := fmt.Sprintf("%d-%d", numlic, codreduz)
+		if item, ok := cacheCadprolic[key]; ok {
+			if _, err := update.Exec(qtd, qtd, numlic, item); err != nil {
+				panic(fmt.Sprintf("erro ao executar update cadpro: %v", err.Error()))
+			} 
+		} else {
+			panic(fmt.Sprintf("cadprolic não encontrado para a chave: %s", key))
+		}
+		bar.Increment()
+	}
+	tx.Commit()
+
+	query = `WITH ranked_items AS (
+		SELECT
+			licit_lic_nro,
+			LICIT_MTSV_NRO,
+			dla.QUANT,
+			VLR_UNIT,
+			DATA_INICIO,
+			ROW_NUMBER() OVER (PARTITION BY licit_lic_nro, LICIT_MTSV_NRO ORDER BY DATA_INICIO DESC) AS rn
+		FROM
+			system.D_LICIT_AJUST dla)
+	SELECT
+		licit_lic_nro,
+		LICIT_MTSV_NRO,
+		--quant,
+		VLR_UNIT
+	FROM
+		ranked_items
+	WHERE
+		rn = 1
+	ORDER BY
+		LICIT_MTSV_NRO`
+	
+	totalRows, err = modules.CountRows(query)
+	if err != nil {
+		panic(fmt.Sprintf("erro ao contar linhas: %v", err.Error()))
+	}
+
+	bar = modules.NewProgressBar(p, totalRows, "Aditamento - Valores")
+
+	rows, err = cnxOra.Query(query)
+	if err != nil {
+		panic(fmt.Sprintf("erro ao executar query aditamento - valores: %v", err.Error()))
+	}
+
+	for rows.Next() {
+		var (
+			numlic int
+			codreduz int
+			vlr_unit float64
+		)
+		if err := rows.Scan(&numlic, &codreduz, &vlr_unit); err != nil {
+			panic(fmt.Sprintf("erro ao ler resultado da query aditamento - valores: %v", err.Error()))
+		}
+
+		key := fmt.Sprintf("%d-%d", numlic, codreduz)
+		if item, ok := cacheCadprolic[key]; ok {
+			if _, err := cnxFdb.Exec(fmt.Sprintf(`update cadpro set vaunadt = %v, vatoadt = qtdadt*%v where numlic = %v and item = %v and subem = 1`, vlr_unit, vlr_unit, numlic, item)); err != nil {
+				panic(fmt.Sprintf("erro ao executar update cadpro: %v", err.Error()))
+			}
+		} else {
+			panic(fmt.Sprintf("cadprolic não encontrado para a chave: %s", key))
+		}
+		bar.Increment()
+	}
+
+	modules.Trigger("TBU_CADPRO", true)
 }
