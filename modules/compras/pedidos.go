@@ -120,7 +120,7 @@ func Cadped(p *mpb.Progress) {
 	S.sequencia,
 	row_number() OVER (PARTITION BY ID_CADPED ORDER BY ID_CADPED) cabecalho,
 	--S.numped_renumerado,
-	S.numped,
+	SUBSTR(LPAD(SUBSTR(S.numped, 1, INSTR(S.numped, '/') - 1), 5, '0'), -5) || '/' || SUBSTR(S.numped, -2) AS numped,
 	A.NRO AS id_cadped,
 	CASE WHEN A.NUMERO_SUB = 0 THEN EMPE_NRO ELSE NULL END pkemp,
 	A.dt_emissao,
@@ -164,7 +164,7 @@ func Cadped(p *mpb.Progress) {
 	I.ATC_NRO = A.NRO
 	JOIN sequenciado S ON
 	S.id_cadped = A.NRO AND S.numped_renumerado = TO_CHAR(A.NRO_DOC, 'fm00000') || '/' || SUBSTR(A.ex_ano, 3, 2)
-	LEFT JOIN D_ATCIT_ANULA AN ON
+	LEFT JOIN (SELECT ATCIT_ATC_NRO, ATCIT_NROSEQ, sum(quant) quant, sum(valor) valor FROM D_ATCIT_ANULA GROUP BY ATCIT_ATC_NRO, ATCIT_NROSEQ) AN ON
 	A.NRO = AN.ATCIT_ATC_NRO AND I.NROSEQ = AN.ATCIT_NROSEQ 
 	WHERE
 	A.ex_ano = %v

@@ -73,7 +73,7 @@ func Cadorc(p *mpb.Progress) {
 			NULL ficha,
 			NULL desdobro,
 			I.MTSV_NRO material,
-			I.QUANT qtd,
+			sum(I.QUANT) qtd,
 			I.MARCA,
 			0 valor,
 			I.NROSEQ item,
@@ -94,7 +94,6 @@ func Cadorc(p *mpb.Progress) {
 			D.OBJETO ,
 			d.OBJETO ,
 			I.MTSV_NRO,
-			I.QUANT,
 			I.MARCA,
 			i.NROSEQ
 		ORDER BY
@@ -245,7 +244,7 @@ func Fcadorc(p *mpb.Progress) {
 		DISTINCT D.NRO id_cadorc,
 				lpad(D.NRO_DOC,5,'0') || '/' || substr(d.EX_ANO,3,2) numorc ,
 				A.nro codif,
-				substr(a.nome,1,70) nome,
+				substr(trim(a.nome),1,70) nome,
 				0 valorc
 	FROM
 		SYSTEM.D_COT_ITENS I
@@ -286,6 +285,10 @@ func Fcadorc(p *mpb.Progress) {
 			panic(fmt.Sprintf("erro ao ler resultados da consulta: %v", err.Error()))
 		}
 
+		if len(registro.Nome) > 70 {
+			registro.Nome = registro.Nome[:70]
+		}
+
 		_, err = insert.Exec(
 			registro.IdCadorc,
 			registro.Numorc,
@@ -324,15 +327,15 @@ func Vcadorc(p *mpb.Progress) {
 				i.quant * i.valor AS vlrtot,
 				'GL' classe,
 				MARCA,
-				ganhou,
-				vlrganhou
+				gn.ganhou,
+				gn.vlrganhou
 	FROM
 		SYSTEM.D_COT_ITENS I
 			INNER JOIN SYSTEM.D_COTACAO D ON
 				I.COT_NRO = D.NRO
-			left join (select g.COT_NRO ,nroseq , FO_PES_NRO ganhou, valor vlrganhou
+			left join (select g.COT_NRO ,nroseq , FO_PES_NRO ganhou, valor vlrganhou, row_number() OVER (PARTITION BY COT_NRO, nroseq ORDER BY valor) seq
 					from SYSTEM.D_COT_ITENS g where FLG_MENOR_PRECO = 1) gn on gn.COT_NRO = i.COT_NRO
-			and gn.nroseq = i.NROSEQ
+			and gn.nroseq = i.NROSEQ AND i.FO_PES_NRO = ganhou
 	WHERE
 			D.EX_ANO = %v`, modules.Cache.Ano)
 

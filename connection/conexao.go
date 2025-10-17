@@ -35,7 +35,7 @@ func init() {
         os.Getenv("FDB_PATH"))
 
     // Oracle (usando SID)
-    dsnOracle = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%s/%s"`,
+    dsnOracle = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%s/%s?sid=true"`,
         os.Getenv("ORA_USER"),
         os.Getenv("ORA_PASS"),
         os.Getenv("ORA_HOST"),
